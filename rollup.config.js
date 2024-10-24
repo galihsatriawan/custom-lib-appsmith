@@ -1,4 +1,4 @@
-import multiEntry from '@rollup/plugin-multi-entry';
+
 import resolve from '@rollup/plugin-node-resolve';
 import terser from '@rollup/plugin-terser'
 import path from 'path';
@@ -22,7 +22,6 @@ const outputConfig = libraryFolders.map(folder => ({
     name: folder.replace(/-\w/g, m => m[1].toUpperCase()), // Convert kebab-case to CamelCase
   },
   plugins: [
-    multiEntry(),
     resolve(),
     terser(),
   ]
