@@ -1,6 +1,6 @@
 import multiEntry from '@rollup/plugin-multi-entry';
 import resolve from '@rollup/plugin-node-resolve';
-import { terser } from 'rollup-plugin-terser';
+import terser from '@rollup/plugin-terser'
 import path from 'path';
 import fs from 'fs';
 
