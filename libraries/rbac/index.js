@@ -1,7 +1,7 @@
 export default {
     /**
      * This module provides functionality to integrate a service.
-     * @module SimpleFunction
+     * @module RBAC
      */
 	
 
