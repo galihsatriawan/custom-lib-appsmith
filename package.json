@@ -11,11 +11,15 @@
     "type": "git",
     "url": "github.com/galihsatriawan/custom-lib-appsmith.git"
   },
+  "type": "module",
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@rollup/plugin-commonjs": "^28.0.1",
     "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-replace": "^6.0.1",
     "@rollup/plugin-terser": "^0.4.4",
+    "jsonwebtoken": "^9.0.2",
     "rollup": "^2.79.1"
   }
 }
