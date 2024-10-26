@@ -7,10 +7,10 @@ export default {
 
 	state: {
 		env: 'dev',
-		storeValue: Function,
-		navigateTo: Function,
-		clearStore: Function,
-		showAlert: Function,
+		storeValue: async ()=>{},
+		navigateTo: async ()=>{},
+		clearStore: async ()=>{},
+		showAlert: async ()=>{},
 	},
 	field: {
 		token: "tokens"
@@ -130,7 +130,7 @@ export default {
 		}).then(async (response) => {
 			let json = await response.json()
 			if (json.statusCode === 200) {
-				this.state.storeValue(this.field.token, json.data)
+				await this.state.storeValue(this.field.token, json.data)
 				return this.wrapResult(json.data)
 			}
             return this.wrapResult(this.newError(json.errorCode, json.error), true)
@@ -206,7 +206,7 @@ export default {
 			if (json.statusCode != 200) {
 				return this.wrapResult(this.newError(json.errorCode, json.error), true)
 			}
-			this.state.clearStore(this.field.token)
+			await this.state.clearStore(this.field.token)
 			return this.wrapResult("success")
 		} catch (error) {
 			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
@@ -225,7 +225,7 @@ export default {
 			if (json.statusCode === 200) {
 				appsmithData.tokens.accessToken = json.data.accessToken
 				appsmithData.tokens.refreshToken = json.data.refreshToken
-				this.state.storeValue(this.field.token, tokens)
+				await this.state.storeValue(this.field.token, tokens)
 				return this.wrapResult(json.data)
 			}
 			return this.wrapResult(this.newError(json.errorCode, json.error), true)
@@ -275,7 +275,7 @@ export default {
 				}else{
 					appsmithData.tokens.subjectAccessToken.push(json.data)
 				}
-				this.state.storeValue(this.field.token, tokens)
+				await this.state.storeValue(this.field.token, tokens)
 				return this.wrapResult(json.data)
 			}
 			return this.wrapResult(this.newError(json.errorCode, json.error), true)
