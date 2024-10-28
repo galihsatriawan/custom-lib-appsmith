@@ -1,38 +1,39 @@
 export default {
-    /**
-     * This module provides functionality to integrate a service.
-     * @module RBAC
-     */
-	
+	/**
+	 * This module provides functionality to integrate a service.
+	 * @module RBAC
+	 */
+
 
 	state: {
 		env: 'dev',
-		storeValue: async ()=>{},
-		navigateTo: async ()=>{},
-		clearStore: async ()=>{},
-		showAlert: async ()=>{},
+		storeValue: async () => { },
+		navigateTo: async () => { },
+		clearStore: async () => { },
+		showAlert: async () => { },
 	},
 	field: {
-		token: "tokens"
+		token: "tokens",
+		authorizedPage: "authorizedPages"
 	},
-    errorConst:{
-        unexpectedError: {
-            code: 'unexpectedError',
-            message: 'Unexpected error'
-        },
-        unauthorizedUser: {
-            code: 'EVAC4007',
-            message: 'unauthorized user'
-        },
-        forbiddenAction: {
-            code: 'EVAC6007',
-            message: 'forbidden action'
-        },
-        tokenExpired: {
-            code: 'EVAC4008',
-            message: 'token has expired'
-        },
-    },
+	errorConst: {
+		unexpectedError: {
+			code: 'unexpectedError',
+			message: 'Unexpected error'
+		},
+		unauthorizedUser: {
+			code: 'EVAC4007',
+			message: 'unauthorized user'
+		},
+		forbiddenAction: {
+			code: 'EVAC6007',
+			message: 'forbidden action'
+		},
+		tokenExpired: {
+			code: 'EVAC4008',
+			message: 'token has expired'
+		},
+	},
 	config: {
 		env: {
 			dev: {
@@ -53,17 +54,17 @@ export default {
 			},
 		}
 	},
-	
 
-    /**
-     * Set several dependency data or internal functions in Appsmith.
-     * @function setState
-     * @param {string} env - Environment of service (dev or production).
-     * @param {Function} storeValueFunc - Store the value in storage.
-     * @param {Function} navigateToFunc - Navigate to another page.
-     * @param {Function} clearStoreFunc - Clear the value from storage.
-     * @param {Function} showAlertFunc  - Show an alert on the dashboard.
-     */
+
+	/**
+	 * Set several dependency data or internal functions in Appsmith.
+	 * @function setState
+	 * @param {string} env - Environment of service (dev or production).
+	 * @param {Function} storeValueFunc - Store the value in storage.
+	 * @param {Function} navigateToFunc - Navigate to another page.
+	 * @param {Function} clearStoreFunc - Clear the value from storage.
+	 * @param {Function} showAlertFunc  - Show an alert on the dashboard.
+	 */
 	setState(env, storeValueFunc, navigateToFunc, clearStoreFunc, showAlertFunc) {
 		this.state.env = env
 		this.state.storeValue = storeValueFunc
@@ -71,51 +72,75 @@ export default {
 		this.state.clearStore = clearStoreFunc
 		this.state.showAlert = showAlertFunc
 	},
-    /**
-     * Decode JWT token.
-     * @function decodeToken
-     * @param {string} token - The JWT Token.
-     * @returns {object} An object containing the parsed JWT Token.
-     */
+	/**
+	 * Decode JWT token.
+	 * @function decodeToken
+	 * @param {string} token - The JWT Token.
+	 * @returns {object} An object containing the parsed JWT Token.
+	 */
 	decodeToken(token) {
 		let res = jsonwebtoken.decode(token)
 		return res
 	},
 
-    wrapResult(data, isError=false){
-        if (isError){
-            return {
-                code: data.errorCode,
-                error: data.error
-            }
-        }
-        return {
-            data: data
-        }
-    },
-    newError(errorCode, message){
-        return {
-            errorCode: errorCode,
-            error: message
-        }
-    },
+	wrapResult(data, isError = false) {
+		if (isError) {
+			return {
+				code: data.errorCode,
+				error: data.error
+			}
+		}
+		return {
+			data: data
+		}
+	},
+	newError(errorCode, message) {
+		return {
+			errorCode: errorCode,
+			error: message
+		}
+	},
 
-    composeHeaderAuthorization(token) {
+	composeHeaderAuthorization(token) {
 		return {
 			"Content-Type": "application/json",
 			"Accept": "application/json",
 			"Authorization": `Bearer ` + token
 		}
 	},
+	getFirstAuthorizedPage() {
+		for (const key in appsmith.store.authorizedPages) {
+			let authorizedPage = appsmith.store.authorizedPages[key]
+			return authorizedPage
+		}
+		return this.wrapResult(this.newError(this.errorConst.forbiddenAction.code, this.errorConst.forbiddenAction.message), true)
+	},
 
-    /**
-     * Login user to rbac service.
-     * @function login
-     * @param {string} username - The user's username.
-     * @param {string} password - The user's password.
-     * @returns {object} An object containing the parsed JWT Token.
-     * @async
-     */
+	async setAuthorizedPage(tokens) {
+		let authorizedPages = {}
+		for (const key in tokens.subjectAccessToken) {
+			let subjectAccessToken = tokens.subjectAccessToken[key]
+			if (this.pages[subjectAccessToken.object]) {
+				let page = this.pages[subjectAccessToken.object]
+
+				let decodedToken = this.decodeToken(subjectAccessToken.accessToken)
+				if (page.id == decodedToken.objectId) {
+					authorizedPages[page.code] = page
+				}
+			}
+		}
+		await this.state.storeValue(this.field.authorizedPage, authorizedPages)
+		return authorizedPages
+	},
+
+	/**
+	 * Login user to rbac service.
+	 * @function login
+	 * @param {string} username - The user's username.
+	 * @param {string} password - The user's password.
+	 * @returns {object} An object containing the parsed JWT Token.
+	 * @async
+	 */
 	async login(username, password) {
 		let url = this.config.env[this.state.env].host + this.config.path.user.login
 		return await fetch(url, {
@@ -131,11 +156,12 @@ export default {
 			let json = await response.json()
 			if (json.statusCode === 200) {
 				await this.state.storeValue(this.field.token, json.data)
+				await this.setAuthorizedPage(json.data)
 				return this.wrapResult(json.data)
 			}
-            return this.wrapResult(this.newError(json.errorCode, json.error), true)
+			return this.wrapResult(this.newError(json.errorCode, json.error), true)
 		}).catch((error) => {
-            return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
 		});
 	},
 	async register(username, password, appName, merchantCode) {
@@ -163,19 +189,19 @@ export default {
 	},
 	async authorizePage(pageCode, pageSecret, appsmithData) {
 		const subjectAuth = appsmithData.tokens.subjectAccessToken.filter(d => d.object === pageCode)
-	 
+
 		if (subjectAuth.length === 0) {
 			return this.wrapResult(
-                this.newError(this.errorConst.forbiddenAction.code,this.errorConst.forbiddenAction.message), true
-            )
+				this.newError(this.errorConst.forbiddenAction.code, this.errorConst.forbiddenAction.message), true
+			)
 		}
 		let token = subjectAuth[0].accessToken
 		let decToken = this.decodeToken(token)
 
 		if (pageSecret != decToken.objectId) {
 			return this.wrapResult(
-                this.newError(this.errorConst.unauthorizedUser.code,this.errorConst.unauthorizedUser.message), true
-            )
+				this.newError(this.errorConst.unauthorizedUser.code, this.errorConst.unauthorizedUser.message), true
+			)
 		}
 		try {
 			let url = this.config.env[this.state.env].host + this.config.path.subject.authorize
@@ -194,7 +220,7 @@ export default {
 			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
 		}
 	},
-	
+
 	async logout(appsmithData) {
 		try {
 			let url = this.config.env[this.state.env].host + this.config.path.user.logout
@@ -220,7 +246,7 @@ export default {
 				method: 'POST',
 				headers: this.composeHeaderAuthorization(appsmithData.tokens.refreshToken)
 			});
-			
+
 			let json = await response.json()
 			if (json.statusCode === 200) {
 				appsmithData.tokens.accessToken = json.data.accessToken
@@ -256,12 +282,12 @@ export default {
 			let url = this.config.env[this.state.env].host + this.config.path.subject.refreshToken
 			let subjectTokenIndex = -1
 			for (let index = 0; index < appsmithData.tokens.subjectAccessToken; index++) {
-				if (appsmithData.tokens.subjectAccessToken[index].refreshToken==token){
+				if (appsmithData.tokens.subjectAccessToken[index].refreshToken == token) {
 					subjectTokenIndex = index
 					break
 				}
 			}
-			
+
 			const response = await fetch(url, {
 				method: 'POST',
 				headers: this.composeHeaderAuthorization(token)
@@ -269,10 +295,10 @@ export default {
 
 			let json = await response.json()
 			if (json.statusCode === 200) {
-				if (subjectTokenIndex != -1){
+				if (subjectTokenIndex != -1) {
 					appsmithData.tokens.subjectAccessToken[subjectTokenIndex].accessToken = json.data.accessToken
 					appsmithData.tokens.subjectAccessToken[subjectTokenIndex].refreshToken = json.data.refreshToken
-				}else{
+				} else {
 					appsmithData.tokens.subjectAccessToken.push(json.data)
 				}
 				await this.state.storeValue(this.field.token, tokens)
