@@ -6,7 +6,9 @@ export default {
 
 
 	state: {
+		hasSetState: false,
 		env: 'dev',
+		pages: undefined, // example: {'object-code':{'id': 'object-id', 'code' : 'object-code', 'pageName': 'page-name'}}
 		useRefreshToken: false,
 		storeValue: async () => { },
 		navigateTo: async () => { },
@@ -29,6 +31,14 @@ export default {
 		forbiddenAction: {
 			code: 'EVAC6007',
 			message: 'forbidden action'
+		},
+		requiredPageData: {
+			code: 'EVAC6008',
+			message: 'required page data'
+		},
+		requiredSetStateData: {
+			code: 'EVAC6009',
+			message: 'state data is required to be set'
 		},
 		tokenExpired: {
 			code: 'EVAC4008',
@@ -70,6 +80,7 @@ export default {
 	 * @param {Function} showAlertFunc  - Show an alert on the dashboard.
 	 */
 	setState(env, storeValueFunc, navigateToFunc, clearStoreFunc, showAlertFunc, useRefreshToken = false) {
+		this.state.hasSetState = true
 		this.state.env = env
 		this.state.storeValue = storeValueFunc
 		this.state.navigateTo = navigateToFunc
@@ -87,7 +98,15 @@ export default {
 		let res = jsonwebtoken.decode(token)
 		return res
 	},
-
+	checkPrerequisiteFunction(params = { needPageData: false }){
+		if (!this.state.hasSetState){
+			return this.wrapResult(this.newError(this.errorConst.requiredSetStateData.code, this.errorConst.requiredSetStateData.message), true)
+		}
+		if (this.state.pages == undefined && params.needPageData !== undefined && params.needPageData){
+			return this.wrapResult(this.newError(this.errorConst.requiredPageData.code, this.errorConst.requiredPageData.message), true)
+		}
+		return this.wrapResult(true)
+	},
 	wrapResult(data, isError = false) {
 		if (isError) {
 			return {
@@ -123,10 +142,14 @@ export default {
 
 	async setAuthorizedPage(tokens) {
 		let authorizedPages = {}
+		if (tokens.subjectAccessToken == undefined){
+			await this.state.storeValue(this.field.authorizedPage, authorizedPages)
+			return authorizedPages
+		}
 		for (const key in tokens.subjectAccessToken) {
 			let subjectAccessToken = tokens.subjectAccessToken[key]
-			if (this.pages[subjectAccessToken.object]) {
-				let page = this.pages[subjectAccessToken.object]
+			if (this.state.pages[subjectAccessToken.object]) {
+				let page = this.state.pages[subjectAccessToken.object]
 
 				let decodedToken = this.decodeToken(subjectAccessToken.accessToken)
 				if (page.id == decodedToken.objectId) {
@@ -147,6 +170,10 @@ export default {
 	 * @async
 	 */
 	async login(username, password) {
+		let checkResult = this.checkPrerequisiteFunction({needPageData: true})
+		if (checkResult.error){
+			return checkResult
+		}
 		let url = this.config.env[this.state.env].host + this.config.path.user.login
 		return await fetch(url, {
 			method: "POST",
@@ -170,6 +197,10 @@ export default {
 		});
 	},
 	async register(username, password, appName, merchantCode) {
+		let checkResult = this.checkPrerequisiteFunction()
+		if (checkResult.error){
+			return checkResult
+		}
 		let url = this.config.env[this.state.env].host + this.config.path.user.register
 		return await fetch(url, {
 			method: "POST",
@@ -193,6 +224,10 @@ export default {
 		});
 	},
 	async authorizePage(pageCode, pageSecret, appsmithData) {
+		let checkResult = this.checkPrerequisiteFunction()
+		if (checkResult.error){
+			return checkResult
+		}
 		const subjectAuth = appsmithData.tokens.subjectAccessToken.filter(d => d.object === pageCode)
 
 		if (subjectAuth.length === 0) {
@@ -218,9 +253,9 @@ export default {
 			});
 			let json = await response.json()
 			if (json.statusCode != 200) {
-				if (this.state.useRefreshToken){
+				if (this.state.useRefreshToken) {
 					let refreshTokenResult = await this.subjectRefreshToken(refreshToken, appsmithData)
-					if (refreshTokenResult.error){
+					if (refreshTokenResult.error) {
 						return this.wrapResult(this.newError(refreshTokenResult.code, refreshTokenResult.error), true)
 					}
 					return this.wrapResult(true)
@@ -234,6 +269,10 @@ export default {
 	},
 
 	async logout(appsmithData) {
+		let checkResult = this.checkPrerequisiteFunction()
+		if (checkResult.error){
+			return checkResult
+		}
 		try {
 			let url = this.config.env[this.state.env].host + this.config.path.user.logout
 			const response = await fetch(url, {
@@ -252,6 +291,10 @@ export default {
 	},
 
 	async refreshToken(appsmithData) {
+		let checkResult = this.checkPrerequisiteFunction()
+		if (checkResult.error){
+			return checkResult
+		}
 		try {
 			let url = this.config.env[this.state.env].host + this.config.path.user.refreshToken
 			const response = await fetch(url, {
@@ -273,6 +316,10 @@ export default {
 	},
 
 	async subjectLogout(token) {
+		let checkResult = this.checkPrerequisiteFunction()
+		if (checkResult.error){
+			return checkResult
+		}
 		try {
 			let url = this.config.env[this.state.env].host + this.config.path.subject.logout
 			const response = await fetch(url, {
@@ -290,6 +337,10 @@ export default {
 
 	},
 	async subjectRefreshToken(token, appsmithData) {
+		let checkResult = this.checkPrerequisiteFunction()
+		if (checkResult.error){
+			return checkResult
+		}
 		try {
 			let url = this.config.env[this.state.env].host + this.config.path.subject.refreshToken
 			let subjectTokenIndex = -1
@@ -323,6 +374,10 @@ export default {
 	},
 
 	async subjectList(appsmithData, params = { name: undefined, code: undefined, sortBy: undefined, sortDirection: undefined, page: undefined, size: undefined }) {
+		let checkResult = this.checkPrerequisiteFunction()
+		if (checkResult.error){
+			return checkResult
+		}
 		try {
 			let url = new URL(this.config.env[this.state.env].host + this.config.path.subject.list)
 			const queryParams = new URLSearchParams({
@@ -332,7 +387,7 @@ export default {
 				sortDirection: params.sortDirection,
 				page: params.page,
 				size: params.size,
-			  });
+			});
 			url.search = queryParams
 			const response = await fetch(url.toString(), {
 				method: 'GET',
@@ -349,6 +404,10 @@ export default {
 	},
 
 	async assignSubject(appsmithData, req = []) {
+		let checkResult = this.checkPrerequisiteFunction()
+		if (checkResult.error){
+			return checkResult
+		}
 		try {
 			let url = new URL(this.config.env[this.state.env].host + this.config.path.subject.assignSubject)
 			const response = await fetch(url.toString(), {
@@ -367,6 +426,10 @@ export default {
 	},
 
 	async unassignSubject(appsmithData, req = []) {
+		let checkResult = this.checkPrerequisiteFunction()
+		if (checkResult.error){
+			return checkResult
+		}
 		try {
 			let url = new URL(this.config.env[this.state.env].host + this.config.path.subject.unassignSubject)
 			const response = await fetch(url.toString(), {
