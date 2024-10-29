@@ -87,6 +87,11 @@ export default {
 		this.state.clearStore = clearStoreFunc
 		this.state.showAlert = showAlertFunc
 		this.state.useRefreshToken = useRefreshToken
+		return this
+	},
+	setPages(pages) {
+		this.state.pages = pages
+		return this
 	},
 	/**
 	 * Decode JWT token.
@@ -132,7 +137,7 @@ export default {
 			"Authorization": `Bearer ` + token
 		}
 	},
-	getFirstAuthorizedPage() {
+	getFirstAuthorizedPage(appsmithData) {
 		for (const key in appsmith.store.authorizedPages) {
 			let authorizedPage = appsmith.store.authorizedPages[key]
 			return authorizedPage
