@@ -93,6 +93,10 @@ export default {
 		this.state.pages = pages
 		return this
 	},
+	setPages(useRefreshToken) {
+		this.state.useRefreshToken = useRefreshToken
+		return this
+	},
 	/**
 	 * Decode JWT token.
 	 * @function decodeToken
@@ -258,10 +262,22 @@ export default {
 			});
 			let json = await response.json()
 			if (json.statusCode != 200) {
+				console.log("errorAuthorized", json)
 				if (this.state.useRefreshToken) {
+					console.log("useRefreshToken")
 					let refreshTokenResult = await this.subjectRefreshToken(refreshToken)
 					if (refreshTokenResult.error) {
+						console.log("errorRefreshToken", refreshTokenResult)
 						return this.wrapResult(this.newError(refreshTokenResult.code, refreshTokenResult.error), true)
+					}
+					console.log("successRefresh", refreshTokenResult)
+					const response = await fetch(url, {
+						method: 'POST',
+						headers: this.composeHeaderAuthorization(refreshTokenResult.accessToken)
+					});
+					let json = await response.json()
+					if (json.statusCode != 200) {
+						return this.wrapResult(this.newError(json.errorCode, json.error), true)
 					}
 					return this.wrapResult(true)
 				}
@@ -369,6 +385,7 @@ export default {
 				} else {
 					tokens.subjectAccessToken.push(json.data)
 				}
+				await this.state.clearStore(this.field.token)
 				await this.state.storeValue(this.field.token, tokens)
 				return this.wrapResult(json.data)
 			}
