@@ -7,6 +7,7 @@ export default {
 
 	state: {
 		env: 'dev',
+		useRefreshToken: false,
 		storeValue: async () => { },
 		navigateTo: async () => { },
 		clearStore: async () => { },
@@ -51,6 +52,9 @@ export default {
 				authorize: '/v1/subject/authorize',
 				refreshToken: '/v1/subject/refresh',
 				logout: '/v1/subject/logout',
+				assignSubject: '/v1/subject/role',
+				unassignSubject: '/v1/subject/role',
+				list: '/v1/subject/list',
 			},
 		}
 	},
@@ -65,12 +69,13 @@ export default {
 	 * @param {Function} clearStoreFunc - Clear the value from storage.
 	 * @param {Function} showAlertFunc  - Show an alert on the dashboard.
 	 */
-	setState(env, storeValueFunc, navigateToFunc, clearStoreFunc, showAlertFunc) {
+	setState(env, storeValueFunc, navigateToFunc, clearStoreFunc, showAlertFunc, useRefreshToken = false) {
 		this.state.env = env
 		this.state.storeValue = storeValueFunc
 		this.state.navigateTo = navigateToFunc
 		this.state.clearStore = clearStoreFunc
 		this.state.showAlert = showAlertFunc
+		this.state.useRefreshToken = useRefreshToken
 	},
 	/**
 	 * Decode JWT token.
@@ -196,6 +201,7 @@ export default {
 			)
 		}
 		let token = subjectAuth[0].accessToken
+		let refreshToken = subjectAuth[0].refreshToken
 		let decToken = this.decodeToken(token)
 
 		if (pageSecret != decToken.objectId) {
@@ -212,7 +218,13 @@ export default {
 			});
 			let json = await response.json()
 			if (json.statusCode != 200) {
-				// TODO: when token has expired need refresh
+				if (this.state.useRefreshToken){
+					let refreshTokenResult = await this.subjectRefreshToken(refreshToken, appsmithData)
+					if (refreshTokenResult.error){
+						return this.wrapResult(this.newError(refreshTokenResult.code, refreshTokenResult.error), true)
+					}
+					return this.wrapResult(true)
+				}
 				return this.wrapResult(this.newError(json.errorCode, json.error), true)
 			}
 			return this.wrapResult(true)
@@ -301,10 +313,72 @@ export default {
 				} else {
 					appsmithData.tokens.subjectAccessToken.push(json.data)
 				}
-				await this.state.storeValue(this.field.token, tokens)
+				await this.state.storeValue(this.field.token, appsmithData.tokens)
 				return this.wrapResult(json.data)
 			}
 			return this.wrapResult(this.newError(json.errorCode, json.error), true)
+		} catch (error) {
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+		}
+	},
+
+	async subjectList(appsmithData, params = { name: undefined, code: undefined, sortBy: undefined, sortDirection: undefined, page: undefined, size: undefined }) {
+		try {
+			let url = new URL(this.config.env[this.state.env].host + this.config.path.subject.list)
+			const queryParams = new URLSearchParams({
+				name: params.name,
+				code: params.code,
+				sortBy: params.sortBy,
+				sortDirection: params.sortDirection,
+				page: params.page,
+				size: params.size,
+			  });
+			url.search = queryParams
+			const response = await fetch(url.toString(), {
+				method: 'GET',
+				headers: this.composeHeaderAuthorization(appsmithData.tokens.accessToken)
+			});
+			let json = await response.json()
+			if (json.statusCode != 200) {
+				return this.wrapResult(this.newError(json.errorCode, json.error), true)
+			}
+			return this.wrapResult(json.data)
+		} catch (error) {
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+		}
+	},
+
+	async assignSubject(appsmithData, req = []) {
+		try {
+			let url = new URL(this.config.env[this.state.env].host + this.config.path.subject.assignSubject)
+			const response = await fetch(url.toString(), {
+				method: 'POST',
+				headers: this.composeHeaderAuthorization(appsmithData.tokens.accessToken),
+				body: JSON.stringify(req)
+			});
+			let json = await response.json()
+			if (json.statusCode != 200) {
+				return this.wrapResult(this.newError(json.errorCode, json.error), true)
+			}
+			return this.wrapResult(json.data)
+		} catch (error) {
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+		}
+	},
+
+	async unassignSubject(appsmithData, req = []) {
+		try {
+			let url = new URL(this.config.env[this.state.env].host + this.config.path.subject.unassignSubject)
+			const response = await fetch(url.toString(), {
+				method: 'DELETE',
+				headers: this.composeHeaderAuthorization(appsmithData.tokens.accessToken),
+				body: JSON.stringify(req)
+			});
+			let json = await response.json()
+			if (json.statusCode != 200) {
+				return this.wrapResult(this.newError(json.errorCode, json.error), true)
+			}
+			return this.wrapResult(json.data)
 		} catch (error) {
 			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
 		}
