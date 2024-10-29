@@ -137,7 +137,7 @@ export default {
 			"Authorization": `Bearer ` + token
 		}
 	},
-	getFirstAuthorizedPage(appsmithData) {
+	getFirstAuthorizedPage() {
 		for (const key in appsmith.store.authorizedPages) {
 			let authorizedPage = appsmith.store.authorizedPages[key]
 			return authorizedPage
@@ -228,12 +228,12 @@ export default {
 			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
 		});
 	},
-	async authorizePage(pageCode, pageSecret, appsmithData) {
+	async authorizePage(pageCode, pageSecret) {
 		let checkResult = this.checkPrerequisiteFunction()
 		if (checkResult.error){
 			return checkResult
 		}
-		const subjectAuth = appsmithData.tokens.subjectAccessToken.filter(d => d.object === pageCode)
+		const subjectAuth = appsmith.store.tokens.subjectAccessToken.filter(d => d.object === pageCode)
 
 		if (subjectAuth.length === 0) {
 			return this.wrapResult(
@@ -259,7 +259,7 @@ export default {
 			let json = await response.json()
 			if (json.statusCode != 200) {
 				if (this.state.useRefreshToken) {
-					let refreshTokenResult = await this.subjectRefreshToken(refreshToken, appsmithData)
+					let refreshTokenResult = await this.subjectRefreshToken(refreshToken)
 					if (refreshTokenResult.error) {
 						return this.wrapResult(this.newError(refreshTokenResult.code, refreshTokenResult.error), true)
 					}
@@ -273,7 +273,7 @@ export default {
 		}
 	},
 
-	async logout(appsmithData) {
+	async logout() {
 		let checkResult = this.checkPrerequisiteFunction()
 		if (checkResult.error){
 			return checkResult
@@ -282,7 +282,7 @@ export default {
 			let url = this.config.env[this.state.env].host + this.config.path.user.logout
 			const response = await fetch(url, {
 				method: 'POST',
-				headers: this.composeHeaderAuthorization(appsmithData.tokens.accessToken)
+				headers: this.composeHeaderAuthorization(appsmith.store.tokens.accessToken)
 			});
 			let json = await response.json()
 			if (json.statusCode != 200) {
@@ -295,7 +295,7 @@ export default {
 		}
 	},
 
-	async refreshToken(appsmithData) {
+	async refreshToken() {
 		let checkResult = this.checkPrerequisiteFunction()
 		if (checkResult.error){
 			return checkResult
@@ -304,13 +304,13 @@ export default {
 			let url = this.config.env[this.state.env].host + this.config.path.user.refreshToken
 			const response = await fetch(url, {
 				method: 'POST',
-				headers: this.composeHeaderAuthorization(appsmithData.tokens.refreshToken)
+				headers: this.composeHeaderAuthorization(appsmith.store.tokens.refreshToken)
 			});
 
 			let json = await response.json()
 			if (json.statusCode === 200) {
-				appsmithData.tokens.accessToken = json.data.accessToken
-				appsmithData.tokens.refreshToken = json.data.refreshToken
+				appsmith.store.tokens.accessToken = json.data.accessToken
+				appsmith.store.tokens.refreshToken = json.data.refreshToken
 				await this.state.storeValue(this.field.token, tokens)
 				return this.wrapResult(json.data)
 			}
@@ -341,7 +341,7 @@ export default {
 		}
 
 	},
-	async subjectRefreshToken(token, appsmithData) {
+	async subjectRefreshToken(token) {
 		let checkResult = this.checkPrerequisiteFunction()
 		if (checkResult.error){
 			return checkResult
@@ -349,8 +349,8 @@ export default {
 		try {
 			let url = this.config.env[this.state.env].host + this.config.path.subject.refreshToken
 			let subjectTokenIndex = -1
-			for (let index = 0; index < appsmithData.tokens.subjectAccessToken; index++) {
-				if (appsmithData.tokens.subjectAccessToken[index].refreshToken == token) {
+			for (let index = 0; index < appsmith.store.tokens.subjectAccessToken; index++) {
+				if (appsmith.store.tokens.subjectAccessToken[index].refreshToken == token) {
 					subjectTokenIndex = index
 					break
 				}
@@ -364,12 +364,12 @@ export default {
 			let json = await response.json()
 			if (json.statusCode === 200) {
 				if (subjectTokenIndex != -1) {
-					appsmithData.tokens.subjectAccessToken[subjectTokenIndex].accessToken = json.data.accessToken
-					appsmithData.tokens.subjectAccessToken[subjectTokenIndex].refreshToken = json.data.refreshToken
+					appsmith.store.tokens.subjectAccessToken[subjectTokenIndex].accessToken = json.data.accessToken
+					appsmith.store.tokens.subjectAccessToken[subjectTokenIndex].refreshToken = json.data.refreshToken
 				} else {
-					appsmithData.tokens.subjectAccessToken.push(json.data)
+					appsmith.store.tokens.subjectAccessToken.push(json.data)
 				}
-				await this.state.storeValue(this.field.token, appsmithData.tokens)
+				await this.state.storeValue(this.field.token, appsmith.store.tokens)
 				return this.wrapResult(json.data)
 			}
 			return this.wrapResult(this.newError(json.errorCode, json.error), true)
@@ -378,7 +378,7 @@ export default {
 		}
 	},
 
-	async subjectList(appsmithData, params = { name: undefined, code: undefined, sortBy: undefined, sortDirection: undefined, page: undefined, size: undefined }) {
+	async subjectList(params = { name: undefined, code: undefined, sortBy: undefined, sortDirection: undefined, page: undefined, size: undefined }) {
 		let checkResult = this.checkPrerequisiteFunction()
 		if (checkResult.error){
 			return checkResult
@@ -396,7 +396,7 @@ export default {
 			url.search = queryParams
 			const response = await fetch(url.toString(), {
 				method: 'GET',
-				headers: this.composeHeaderAuthorization(appsmithData.tokens.accessToken)
+				headers: this.composeHeaderAuthorization(appsmith.store.tokens.accessToken)
 			});
 			let json = await response.json()
 			if (json.statusCode != 200) {
@@ -408,7 +408,7 @@ export default {
 		}
 	},
 
-	async assignSubject(appsmithData, req = []) {
+	async assignSubject( req = []) {
 		let checkResult = this.checkPrerequisiteFunction()
 		if (checkResult.error){
 			return checkResult
@@ -417,7 +417,7 @@ export default {
 			let url = new URL(this.config.env[this.state.env].host + this.config.path.subject.assignSubject)
 			const response = await fetch(url.toString(), {
 				method: 'POST',
-				headers: this.composeHeaderAuthorization(appsmithData.tokens.accessToken),
+				headers: this.composeHeaderAuthorization(appsmith.store.tokens.accessToken),
 				body: JSON.stringify(req)
 			});
 			let json = await response.json()
@@ -430,7 +430,7 @@ export default {
 		}
 	},
 
-	async unassignSubject(appsmithData, req = []) {
+	async unassignSubject(req = []) {
 		let checkResult = this.checkPrerequisiteFunction()
 		if (checkResult.error){
 			return checkResult
@@ -439,7 +439,7 @@ export default {
 			let url = new URL(this.config.env[this.state.env].host + this.config.path.subject.unassignSubject)
 			const response = await fetch(url.toString(), {
 				method: 'DELETE',
-				headers: this.composeHeaderAuthorization(appsmithData.tokens.accessToken),
+				headers: this.composeHeaderAuthorization(appsmith.store.tokens.accessToken),
 				body: JSON.stringify(req)
 			});
 			let json = await response.json()
