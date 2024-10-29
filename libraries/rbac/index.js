@@ -355,7 +355,7 @@ export default {
 					break
 				}
 			}
-
+			let tokens = appsmith.store.tokens
 			const response = await fetch(url, {
 				method: 'POST',
 				headers: this.composeHeaderAuthorization(token)
@@ -364,12 +364,12 @@ export default {
 			let json = await response.json()
 			if (json.statusCode === 200) {
 				if (subjectTokenIndex != -1) {
-					appsmith.store.tokens.subjectAccessToken[subjectTokenIndex].accessToken = json.data.accessToken
-					appsmith.store.tokens.subjectAccessToken[subjectTokenIndex].refreshToken = json.data.refreshToken
+					tokens.subjectAccessToken[subjectTokenIndex].accessToken = json.data.accessToken
+					tokens.subjectAccessToken[subjectTokenIndex].refreshToken = json.data.refreshToken
 				} else {
-					appsmith.store.tokens.subjectAccessToken.push(json.data)
+					tokens.subjectAccessToken.push(json.data)
 				}
-				await this.state.storeValue(this.field.token, appsmith.store.tokens)
+				await this.state.storeValue(this.field.token, tokens)
 				return this.wrapResult(json.data)
 			}
 			return this.wrapResult(this.newError(json.errorCode, json.error), true)
