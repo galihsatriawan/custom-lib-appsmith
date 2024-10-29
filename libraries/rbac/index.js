@@ -237,22 +237,18 @@ export default {
 		if (checkResult.error){
 			return checkResult
 		}
-		const subjectAuth = appsmith.store.tokens.subjectAccessToken.filter(d => d.object === pageCode)
+		const subjectAuths = appsmith.store.tokens.subjectAccessToken.filter(d => {
+			let decToken = this.decodeToken(d.accessToken)
+			return (d.object === pageCode && pageSecret == decToken.objectId)})
 
-		if (subjectAuth.length === 0) {
+		if (subjectAuths.length === 0) {
 			return this.wrapResult(
 				this.newError(this.errorConst.forbiddenAction.code, this.errorConst.forbiddenAction.message), true
 			)
 		}
-		let token = subjectAuth[0].accessToken
-		let refreshToken = subjectAuth[0].refreshToken
-		let decToken = this.decodeToken(token)
-
-		if (pageSecret != decToken.objectId) {
-			return this.wrapResult(
-				this.newError(this.errorConst.unauthorizedUser.code, this.errorConst.unauthorizedUser.message), true
-			)
-		}
+		let token = subjectAuths[0].accessToken
+		let refreshToken = subjectAuths[0].refreshToken
+		
 		try {
 			let url = this.config.env[this.state.env].host + this.config.path.subject.authorize
 
@@ -262,18 +258,14 @@ export default {
 			});
 			let json = await response.json()
 			if (json.statusCode != 200) {
-				console.log("errorAuthorized", json)
 				if (this.state.useRefreshToken) {
-					console.log("useRefreshToken")
 					let refreshTokenResult = await this.subjectRefreshToken(refreshToken)
 					if (refreshTokenResult.error) {
-						console.log("errorRefreshToken", refreshTokenResult)
 						return this.wrapResult(this.newError(refreshTokenResult.code, refreshTokenResult.error), true)
 					}
-					console.log("successRefresh", refreshTokenResult)
 					const response = await fetch(url, {
 						method: 'POST',
-						headers: this.composeHeaderAuthorization(refreshTokenResult.accessToken)
+						headers: this.composeHeaderAuthorization(refreshTokenResult.data.accessToken)
 					});
 					let json = await response.json()
 					if (json.statusCode != 200) {
@@ -365,13 +357,14 @@ export default {
 		try {
 			let url = this.config.env[this.state.env].host + this.config.path.subject.refreshToken
 			let subjectTokenIndex = -1
-			for (let index = 0; index < appsmith.store.tokens.subjectAccessToken; index++) {
-				if (appsmith.store.tokens.subjectAccessToken[index].refreshToken == token) {
+			let tokens = appsmith.store.tokens
+			for (let index = 0; index < tokens.subjectAccessToken; index++) {
+				if (tokens.subjectAccessToken[index].refreshToken == token) {
 					subjectTokenIndex = index
 					break
 				}
 			}
-			let tokens = appsmith.store.tokens
+			
 			const response = await fetch(url, {
 				method: 'POST',
 				headers: this.composeHeaderAuthorization(token)
