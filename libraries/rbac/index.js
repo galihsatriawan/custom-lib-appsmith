@@ -359,7 +359,7 @@ export default {
 			let url = this.config.env[this.state.env].host + this.config.path.subject.refreshToken
 			let subjectTokenIndex = -1
 			let tokens = appsmith.store.tokens
-			for (let index = 0; index < tokens.subjectAccessToken; index++) {
+			for (let index = 0; index < tokens.subjectAccessToken.length; index++) {
 				if (tokens.subjectAccessToken[index].refreshToken == token) {
 					subjectTokenIndex = index
 					break
@@ -379,7 +379,6 @@ export default {
 				} else {
 					tokens.subjectAccessToken.push(json.data)
 				}
-				await this.state.clearStore(this.field.token)
 				await this.state.storeValue(this.field.token, tokens)
 				return this.wrapResult(json.data)
 			}
