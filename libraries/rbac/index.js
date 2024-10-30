@@ -1,3 +1,4 @@
+import { jwt } from 'jsonwebtoken';
 export default {
 	/**
 	 * This module provides functionality to integrate a service.
@@ -91,10 +92,9 @@ export default {
 	},
 	setPages(pages) {
 		this.state.pages = pages
-		console.log("pages", this.state.pages)
 		return this
 	},
-	setPages(useRefreshToken) {
+	setUseRefreshToken(useRefreshToken) {
 		this.state.useRefreshToken = useRefreshToken
 		return this
 	},
@@ -105,15 +105,14 @@ export default {
 	 * @returns {object} An object containing the parsed JWT Token.
 	 */
 	decodeToken(token) {
-		let res = jsonwebtoken.decode(token)
+		let res = jwt.decode(token)
 		return res
 	},
-	checkPrerequisiteFunction(params = { needPageData: false }){
-		if (!this.state.hasSetState){
+	checkPrerequisiteFunction(params = { needPageData: false }) {
+		if (!this.state.hasSetState) {
 			return this.wrapResult(this.newError(this.errorConst.requiredSetStateData.code, this.errorConst.requiredSetStateData.message), true)
 		}
-		if (this.state.pages == undefined && params.needPageData !== undefined && params.needPageData){
-			console.log("check", this.state)
+		if (this.state.pages == undefined && params.needPageData !== undefined && params.needPageData) {
 			return this.wrapResult(this.newError(this.errorConst.requiredPageData.code, this.errorConst.requiredPageData.message), true)
 		}
 		return this.wrapResult(true)
@@ -153,7 +152,7 @@ export default {
 
 	async setAuthorizedPage(tokens) {
 		let authorizedPages = {}
-		if (tokens.subjectAccessToken == undefined){
+		if (tokens.subjectAccessToken == undefined) {
 			await this.state.storeValue(this.field.authorizedPage, authorizedPages)
 			return authorizedPages
 		}
@@ -181,8 +180,8 @@ export default {
 	 * @async
 	 */
 	async login(username, password) {
-		let checkResult = this.checkPrerequisiteFunction({needPageData: true})
-		if (checkResult.error){
+		let checkResult = this.checkPrerequisiteFunction({ needPageData: true })
+		if (checkResult.error) {
 			return checkResult
 		}
 		let url = this.config.env[this.state.env].host + this.config.path.user.login
@@ -209,7 +208,7 @@ export default {
 	},
 	async register(username, password, appName, merchantCode) {
 		let checkResult = this.checkPrerequisiteFunction()
-		if (checkResult.error){
+		if (checkResult.error) {
 			return checkResult
 		}
 		let url = this.config.env[this.state.env].host + this.config.path.user.register
@@ -236,13 +235,14 @@ export default {
 	},
 	async authorizePage(pageCode, pageSecret) {
 		let checkResult = this.checkPrerequisiteFunction()
-		if (checkResult.error){
+		if (checkResult.error) {
 			return checkResult
 		}
 		let tokens = appsmith.store.tokens
 		const subjectAuths = tokens.subjectAccessToken.filter(d => {
 			let decToken = this.decodeToken(d.accessToken)
-			return (d.object === pageCode && pageSecret == decToken.objectId)})
+			return (d.object === pageCode && pageSecret == decToken.objectId)
+		})
 
 		if (subjectAuths.length === 0) {
 			return this.wrapResult(
@@ -251,7 +251,7 @@ export default {
 		}
 		let token = subjectAuths[0].accessToken
 		let refreshToken = subjectAuths[0].refreshToken
-		
+
 		try {
 			let url = this.config.env[this.state.env].host + this.config.path.subject.authorize
 
@@ -264,7 +264,7 @@ export default {
 				if (this.state.useRefreshToken && json.errorCode == this.errorConst.tokenExpired.code) {
 					let refreshTokenResult = await this.subjectRefreshToken(refreshToken)
 					if (refreshTokenResult.error) {
-						if (refreshTokenResult.code == this.errorConst.tokenExpired.code){
+						if (refreshTokenResult.code == this.errorConst.tokenExpired.code) {
 							await this.state.clearStore(this.field.token)
 						}
 						return this.wrapResult(this.newError(refreshTokenResult.code, refreshTokenResult.error), true)
@@ -279,7 +279,7 @@ export default {
 					}
 					return this.wrapResult(true)
 				}
-				if (json.errorCode == this.errorConst.tokenExpired.code){
+				if (json.errorCode == this.errorConst.tokenExpired.code) {
 					await this.state.clearStore(this.field.token)
 				}
 				return this.wrapResult(this.newError(json.errorCode, json.error), true)
@@ -292,7 +292,7 @@ export default {
 
 	async logout() {
 		let checkResult = this.checkPrerequisiteFunction()
-		if (checkResult.error){
+		if (checkResult.error) {
 			return checkResult
 		}
 		try {
@@ -314,7 +314,7 @@ export default {
 
 	async refreshToken() {
 		let checkResult = this.checkPrerequisiteFunction()
-		if (checkResult.error){
+		if (checkResult.error) {
 			return checkResult
 		}
 		try {
@@ -339,7 +339,7 @@ export default {
 
 	async subjectLogout(token) {
 		let checkResult = this.checkPrerequisiteFunction()
-		if (checkResult.error){
+		if (checkResult.error) {
 			return checkResult
 		}
 		try {
@@ -360,7 +360,7 @@ export default {
 	},
 	async subjectRefreshToken(token) {
 		let checkResult = this.checkPrerequisiteFunction()
-		if (checkResult.error){
+		if (checkResult.error) {
 			return checkResult
 		}
 		try {
@@ -373,7 +373,7 @@ export default {
 					break
 				}
 			}
-			
+
 			const response = await fetch(url, {
 				method: 'POST',
 				headers: this.composeHeaderAuthorization(token)
@@ -398,7 +398,7 @@ export default {
 
 	async subjectList(params = { name: undefined, code: undefined, sortBy: undefined, sortDirection: undefined, page: undefined, size: undefined }) {
 		let checkResult = this.checkPrerequisiteFunction()
-		if (checkResult.error){
+		if (checkResult.error) {
 			return checkResult
 		}
 		try {
@@ -426,9 +426,9 @@ export default {
 		}
 	},
 
-	async assignSubject( req = []) {
+	async assignSubject(req = []) {
 		let checkResult = this.checkPrerequisiteFunction()
-		if (checkResult.error){
+		if (checkResult.error) {
 			return checkResult
 		}
 		try {
@@ -450,7 +450,7 @@ export default {
 
 	async unassignSubject(req = []) {
 		let checkResult = this.checkPrerequisiteFunction()
-		if (checkResult.error){
+		if (checkResult.error) {
 			return checkResult
 		}
 		try {

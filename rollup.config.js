@@ -5,6 +5,7 @@ import commonjs from '@rollup/plugin-commonjs';
 import path from 'path';
 import fs from 'fs';
 import replace from '@rollup/plugin-replace';
+import nodePolyfills from 'rollup-plugin-polyfill-node';
 // Dynamically generate the input configuration for Rollup.
 // This is going to parse the folders in the `libraries` directory.
 const libraryFolders = fs.readdirSync('libraries').filter(function (file) {
@@ -25,12 +26,13 @@ const outputConfig = libraryFolders.map(folder => ({
   plugins: [
     resolve(),
     terser(),
+    nodePolyfills( /* options */ ),
+    commonjs({
+      include: /node_modules/,
+    }),
     replace({
       preventAssignment: true,
     }),
-    commonjs({
-      include: /node_modules/,
-    })
   ]
 }));
 
