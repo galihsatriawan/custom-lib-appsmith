@@ -262,6 +262,9 @@ export default {
 				if (this.state.useRefreshToken && json.errorCode == this.errorConst.tokenExpired.code) {
 					let refreshTokenResult = await this.subjectRefreshToken(refreshToken)
 					if (refreshTokenResult.error) {
+						if (refreshTokenResult.errorCode == this.errorConst.tokenExpired.code){
+							await this.state.clearStore(this.field.token)
+						}
 						return this.wrapResult(this.newError(refreshTokenResult.code, refreshTokenResult.error), true)
 					}
 					const response = await fetch(url, {
