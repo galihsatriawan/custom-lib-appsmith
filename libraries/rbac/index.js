@@ -237,7 +237,8 @@ export default {
 		if (checkResult.error){
 			return checkResult
 		}
-		const subjectAuths = appsmith.store.tokens.subjectAccessToken.filter(d => {
+		let tokens = appsmith.store.tokens
+		const subjectAuths = tokens.subjectAccessToken.filter(d => {
 			let decToken = this.decodeToken(d.accessToken)
 			return (d.object === pageCode && pageSecret == decToken.objectId)})
 
@@ -258,7 +259,7 @@ export default {
 			});
 			let json = await response.json()
 			if (json.statusCode != 200) {
-				if (this.state.useRefreshToken) {
+				if (this.state.useRefreshToken && json.errorCode == this.errorConst.tokenExpired.code) {
 					let refreshTokenResult = await this.subjectRefreshToken(refreshToken)
 					if (refreshTokenResult.error) {
 						return this.wrapResult(this.newError(refreshTokenResult.code, refreshTokenResult.error), true)
