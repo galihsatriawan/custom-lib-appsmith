@@ -261,8 +261,11 @@ export default {
 			if (json.statusCode != 200) {
 				if (this.state.useRefreshToken && json.errorCode == this.errorConst.tokenExpired.code) {
 					let refreshTokenResult = await this.subjectRefreshToken(refreshToken)
+					console.log('refreshToken',refreshTokenResult)
 					if (refreshTokenResult.error) {
+						console.log('errorRefreshToken',refreshTokenResult)
 						if (refreshTokenResult.code == this.errorConst.tokenExpired.code){
+							console.log('clear store')
 							await this.state.clearStore(this.field.token)
 						}
 						return this.wrapResult(this.newError(refreshTokenResult.code, refreshTokenResult.error), true)
