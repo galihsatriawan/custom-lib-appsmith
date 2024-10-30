@@ -91,6 +91,7 @@ export default {
 	},
 	setPages(pages) {
 		this.state.pages = pages
+		console.log("pages", this.state.pages)
 		return this
 	},
 	setPages(useRefreshToken) {
@@ -112,6 +113,7 @@ export default {
 			return this.wrapResult(this.newError(this.errorConst.requiredSetStateData.code, this.errorConst.requiredSetStateData.message), true)
 		}
 		if (this.state.pages == undefined && params.needPageData !== undefined && params.needPageData){
+			console.log("check", this.state)
 			return this.wrapResult(this.newError(this.errorConst.requiredPageData.code, this.errorConst.requiredPageData.message), true)
 		}
 		return this.wrapResult(true)

@@ -5,7 +5,6 @@ import commonjs from '@rollup/plugin-commonjs';
 import path from 'path';
 import fs from 'fs';
 import replace from '@rollup/plugin-replace';
-import jwt from 'jsonwebtoken';
 // Dynamically generate the input configuration for Rollup.
 // This is going to parse the folders in the `libraries` directory.
 const libraryFolders = fs.readdirSync('libraries').filter(function (file) {
@@ -27,13 +26,10 @@ const outputConfig = libraryFolders.map(folder => ({
     resolve(),
     terser(),
     replace({
-      "process.env.NODE_ENV": JSON.stringify("development"),
+      preventAssignment: true,
     }),
     commonjs({
       include: /node_modules/,
-      namedExports: {
-          'jwt': Object.keys(jwt),
-      }
     })
   ]
 }));
