@@ -1,4 +1,5 @@
-import { jwt } from 'jsonwebtoken';
+import { decode } from "jsonwebtoken"
+
 export default {
 	/**
 	 * This module provides functionality to integrate a service.
@@ -105,7 +106,7 @@ export default {
 	 * @returns {object} An object containing the parsed JWT Token.
 	 */
 	decodeToken(token) {
-		let res = jwt.decode(token)
+		let res = decode(token)
 		return res
 	},
 	checkPrerequisiteFunction(params = { needPageData: false }) {
