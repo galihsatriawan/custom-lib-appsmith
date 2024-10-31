@@ -1,4 +1,3 @@
-import { decode } from "jsonwebtoken"
 
 export default {
 	/**
@@ -106,7 +105,7 @@ export default {
 	 * @returns {object} An object containing the parsed JWT Token.
 	 */
 	decodeToken(token) {
-		let res = decode(token)
+		let res = jsonwebtoken.decode(token)
 		return res
 	},
 	checkPrerequisiteFunction(params = { needPageData: false }) {

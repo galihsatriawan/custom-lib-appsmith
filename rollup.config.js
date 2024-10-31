@@ -30,7 +30,9 @@ const outputConfig = libraryFolders.map(folder => {
       commonjs({
         include: /node_modules/,
       }),
-      replace(),
+      replace({
+        preventAssignment: true
+      }),
     ],
     external: [
       // Add external dependencies here if needed
