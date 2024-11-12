@@ -18,7 +18,8 @@ export default {
 	},
 	field: {
 		token: "tokens",
-		authorizedPage: "authorizedPages"
+		userInfo: "userInfo",
+		authorizedPage: "authorizedPages",
 	},
 	errorConst: {
 		unexpectedError: {
@@ -49,8 +50,8 @@ export default {
 	config: {
 		env: {
 			dev: {
-				host: 'https://evm-rbac.staging.evermosa2z.com'
-			}
+				host: 'https://api-fb.evermosa2z.com/rbac-fb'
+			},
 		},
 		path: {
 			user: {
@@ -58,6 +59,7 @@ export default {
 				refreshToken: '/v1/user/refresh',
 				logout: '/v1/user/logout',
 				register: '/v1/user/register',
+				info: '/v1/user/info',
 			},
 			subject: {
 				authorize: '/v1/subject/authorize',
@@ -67,6 +69,9 @@ export default {
 				unassignSubject: '/v1/subject/role',
 				list: '/v1/subject/list',
 			},
+			application: {
+				authorize : '/v1/application/{id}/oauth/authorize'
+			}
 		}
 	},
 
@@ -108,12 +113,15 @@ export default {
 		let res = jsonwebtoken.decode(token)
 		return res
 	},
-	checkPrerequisiteFunction(params = { needPageData: false }) {
+	checkPrerequisiteFunction(params = { needPageData: false, needToken: false }) {
 		if (!this.state.hasSetState) {
 			return this.wrapResult(this.newError(this.errorConst.requiredSetStateData.code, this.errorConst.requiredSetStateData.message), true)
 		}
 		if (this.state.pages == undefined && params.needPageData !== undefined && params.needPageData) {
 			return this.wrapResult(this.newError(this.errorConst.requiredPageData.code, this.errorConst.requiredPageData.message), true)
+		}
+		if (needToken && !appsmith.store.token){
+			return this.wrapResult(this.newError(this.errorConst.tokenExpired.code, this.errorConst.tokenExpired.message), true)
 		}
 		return this.wrapResult(true)
 	},
@@ -199,6 +207,7 @@ export default {
 			if (json.statusCode === 200) {
 				await this.state.storeValue(this.field.token, json.data)
 				await this.setAuthorizedPage(json.data)
+				await this.getUserInfo()
 				return this.wrapResult(json.data)
 			}
 			return this.wrapResult(this.newError(json.errorCode, json.error), true)
@@ -234,7 +243,7 @@ export default {
 		});
 	},
 	async authorizePage(pageCode, pageSecret) {
-		let checkResult = this.checkPrerequisiteFunction()
+		let checkResult = this.checkPrerequisiteFunction({ needToken: true })
 		if (checkResult.error) {
 			return checkResult
 		}
@@ -295,6 +304,10 @@ export default {
 		if (checkResult.error) {
 			return checkResult
 		}
+		let tokens = appsmith.store.tokens
+		if (!tokens) {
+				return this.wrapResult("success")
+		}
 		try {
 			let url = this.config.env[this.state.env].host + this.config.path.user.logout
 			const response = await fetch(url, {
@@ -303,17 +316,99 @@ export default {
 			});
 			let json = await response.json()
 			if (json.statusCode != 200) {
+				await this.state.clearStore(this.field.token)
+				await this.state.clearStore(this.field.userInfo)
 				return this.wrapResult(this.newError(json.errorCode, json.error), true)
 			}
 			await this.state.clearStore(this.field.token)
+			await this.state.clearStore(this.field.userInfo)
 			return this.wrapResult("success")
 		} catch (error) {
 			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
 		}
 	},
 
+	async getUserInfo() {
+		let checkResult = this.checkPrerequisiteFunction({ needToken: true })
+		if (checkResult.error) {
+			return checkResult
+		}
+
+		try {
+			let url = this.config.env[this.state.env].host + this.config.path.user.info
+			const response = await fetch(url, {
+				method: 'GET',
+				headers: this.composeHeaderAuthorization(appsmith.store.tokens.accessToken)
+			});
+			let json = await response.json()
+			if (json.statusCode != 200) {
+				return this.wrapResult(this.newError(json.errorCode, json.error), true)
+			}
+			await storeValue(this.field.userInfo, json.data)
+			return this.wrapResult(json.data)
+		} catch (error) {
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+		}
+	},
+
+	async getOauthPage(provider, redirectURL) {
+		let checkResult = this.checkPrerequisiteFunction({ needPageData: true })
+		if (checkResult.error) {
+			return checkResult
+		}
+
+		try {
+			if (!appsmith.store.userInfo){
+				await this.getUserInfo()
+			}
+			let path = this.config.path.application.authorize.replace("{id}", appsmith.store.userInfo.currentLoggedInfo.appId)
+			let url = this.config.env[this.state.env].host + path
+			const response = await fetch(url, {
+				method: 'POST',
+				headers: this.composeHeaderAuthorization(appsmith.store.tokens.accessToken),
+				body: JSON.stringify({
+					provider: provider,
+					redirectUrl: redirectURL
+				}),
+			});
+			let json = await response.json()
+			if (json.statusCode != 200) {
+				return this.wrapResult(this.newError(json.errorCode, json.error), true)
+			}
+			return this.wrapResult(json.data)
+		} catch (error) {
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+		}
+	},
+
+	async processOauthCallback() {
+		let checkResult = this.checkPrerequisiteFunction({ needPageData: true })
+		if (checkResult.error) {
+			return checkResult
+		}
+		
+		try {
+			if (!appsmith.URL.queryParams.token && !appsmith.URL.queryParams.error) return;
+			if (appsmith.URL.queryParams.error){
+				let errorString = btoa(appsmith.URL.queryParams.error)
+				const errorObject = JSON.parse(errorString)
+				return this.wrapResult(this.newError(errorObject.errorCode, errorObject.error), true)
+			}
+			let tokenString = btoa(appsmith.URL.queryParams.token)
+			const tokenObject = JSON.parse(tokenString)
+			await storeValue(this.field.token, tokenObject)
+			await this.getUserInfo()
+			return this.wrapResult(tokenObject)
+		} catch (error) {
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+		}
+	},
+
+	
+
+
 	async refreshToken() {
-		let checkResult = this.checkPrerequisiteFunction()
+		let checkResult = this.checkPrerequisiteFunction({ needToken: true })
 		if (checkResult.error) {
 			return checkResult
 		}
@@ -325,9 +420,10 @@ export default {
 			});
 
 			let json = await response.json()
+			let tokens = appsmith.store.tokens
 			if (json.statusCode === 200) {
-				appsmith.store.tokens.accessToken = json.data.accessToken
-				appsmith.store.tokens.refreshToken = json.data.refreshToken
+				tokens.accessToken = json.data.accessToken
+				tokens.refreshToken = json.data.refreshToken
 				await this.state.storeValue(this.field.token, tokens)
 				return this.wrapResult(json.data)
 			}
@@ -338,7 +434,7 @@ export default {
 	},
 
 	async subjectLogout(token) {
-		let checkResult = this.checkPrerequisiteFunction()
+		let checkResult = this.checkPrerequisiteFunction({ needToken: true })
 		if (checkResult.error) {
 			return checkResult
 		}
@@ -359,7 +455,7 @@ export default {
 
 	},
 	async subjectRefreshToken(token) {
-		let checkResult = this.checkPrerequisiteFunction()
+		let checkResult = this.checkPrerequisiteFunction({ needToken: true })
 		if (checkResult.error) {
 			return checkResult
 		}
@@ -396,8 +492,8 @@ export default {
 		}
 	},
 
-	async subjectList(params = { name: undefined, code: undefined, sortBy: undefined, sortDirection: undefined, page: undefined, size: undefined }) {
-		let checkResult = this.checkPrerequisiteFunction()
+	async subjectList(params = { name: '', code: '', sortBy: '', sortDirection: '', page: '', size: '' }) {
+		let checkResult = this.checkPrerequisiteFunction({ needToken: true })
 		if (checkResult.error) {
 			return checkResult
 		}
@@ -427,7 +523,7 @@ export default {
 	},
 
 	async assignSubject(req = []) {
-		let checkResult = this.checkPrerequisiteFunction()
+		let checkResult = this.checkPrerequisiteFunction({ needToken: true })
 		if (checkResult.error) {
 			return checkResult
 		}
@@ -449,7 +545,7 @@ export default {
 	},
 
 	async unassignSubject(req = []) {
-		let checkResult = this.checkPrerequisiteFunction()
+		let checkResult = this.checkPrerequisiteFunction({ needToken: true })
 		if (checkResult.error) {
 			return checkResult
 		}
