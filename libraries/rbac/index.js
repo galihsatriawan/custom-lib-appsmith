@@ -442,11 +442,7 @@ export default {
 		}
 
 		try {
-			let checkURL = await this.checkURL()
-			console.log(checkURL)
 			if (!appsmith.URL.queryParams.exchangeToken && !appsmith.URL.queryParams.error) {
-				console.log(appsmith.URL.queryParams.exchangeToken)
-				console.log(appsmith.URL.queryParams.error)
 				return;
 			}
 			if (appsmith.URL.queryParams.error){
