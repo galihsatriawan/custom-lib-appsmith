@@ -1,4 +1,3 @@
-
 export default {
 	/**
 	 * This module provides functionality to integrate a service.
@@ -9,6 +8,7 @@ export default {
 	state: {
 		hasSetState: false,
 		env: 'dev',
+		applicationInfo: undefined, // example: {'appId': 'xxxx', 'appName': 'xxxx'}
 		pages: undefined, // example: {'object-code':{'id': 'object-id', 'code' : 'object-code', 'pageName': 'page-name'}}
 		useRefreshToken: false,
 		storeValue: async () => { },
@@ -19,6 +19,7 @@ export default {
 	field: {
 		token: "tokens",
 		userInfo: "userInfo",
+		oauthState: "oauthState",
 		authorizedPage: "authorizedPages",
 	},
 	errorConst: {
@@ -42,6 +43,10 @@ export default {
 			code: 'EVAC6009',
 			message: 'state data is required to be set'
 		},
+		requiredApplicationData: {
+			code: 'EVAC6010',
+			message: 'required application data'
+		},
 		tokenExpired: {
 			code: 'EVAC4008',
 			message: 'token has expired'
@@ -49,7 +54,7 @@ export default {
 	},
 	config: {
 		env: {
-			dev: {
+			fb: {
 				host: 'https://api-fb.evermosa2z.com/rbac-fb'
 			},
 		},
@@ -71,6 +76,9 @@ export default {
 			},
 			application: {
 				authorize : '/v1/application/{id}/oauth/authorize'
+			},
+			oauth: {
+				exchangeToken: '/v1/provider/oauth/exchange-token'
 			}
 		}
 	},
@@ -99,6 +107,10 @@ export default {
 		this.state.pages = pages
 		return this
 	},
+	setApplication(applicationInfo) {
+		this.state.applicationInfo = applicationInfo
+		return this
+	},
 	setUseRefreshToken(useRefreshToken) {
 		this.state.useRefreshToken = useRefreshToken
 		return this
@@ -113,15 +125,18 @@ export default {
 		let res = jsonwebtoken.decode(token)
 		return res
 	},
-	checkPrerequisiteFunction(params = { needPageData: false, needToken: false }) {
+	checkPrerequisiteFunction(params = { needPageData: false, needApplicationData: false, needToken: false }) {
 		if (!this.state.hasSetState) {
 			return this.wrapResult(this.newError(this.errorConst.requiredSetStateData.code, this.errorConst.requiredSetStateData.message), true)
 		}
 		if (this.state.pages == undefined && params.needPageData !== undefined && params.needPageData) {
 			return this.wrapResult(this.newError(this.errorConst.requiredPageData.code, this.errorConst.requiredPageData.message), true)
 		}
-		if (needToken && !appsmith.store.token){
+		if (params.needToken && !appsmith.store.tokens){
 			return this.wrapResult(this.newError(this.errorConst.tokenExpired.code, this.errorConst.tokenExpired.message), true)
+		}
+		if (this.state.applicationInfo == undefined && params.needApplicationData !== undefined && params.needApplicationData) {
+			return this.wrapResult(this.newError(this.errorConst.requiredApplicationData.code, this.errorConst.requiredApplicationData.message), true)
 		}
 		return this.wrapResult(true)
 	},
@@ -142,7 +157,13 @@ export default {
 			error: message
 		}
 	},
-
+	composeHeaderExchangeToken(exchangeToken) {
+		return {
+			"Content-Type": "application/json",
+			"Accept": "application/json",
+			"Authorization": exchangeToken,
+		}
+	},
 	composeHeaderAuthorization(token) {
 		return {
 			"Content-Type": "application/json",
@@ -212,7 +233,7 @@ export default {
 			}
 			return this.wrapResult(this.newError(json.errorCode, json.error), true)
 		}).catch((error) => {
-			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError.code, error.message), true)
 		});
 	},
 	async register(username, password, appName, merchantCode) {
@@ -239,7 +260,7 @@ export default {
 			}
 			return this.wrapResult(this.newError(json.errorCode, json.error), true)
 		}).catch((error) => {
-			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError.code, error.message), true)
 		});
 	},
 	async authorizePage(pageCode, pageSecret) {
@@ -295,7 +316,7 @@ export default {
 			}
 			return this.wrapResult(true)
 		} catch (error) {
-			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError.code, error.message), true)
 		}
 	},
 
@@ -324,7 +345,32 @@ export default {
 			await this.state.clearStore(this.field.userInfo)
 			return this.wrapResult("success")
 		} catch (error) {
-			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError.code, error.message), true)
+		}
+	},
+
+	async exchangeToken(exchangeToken) {
+		let checkResult = this.checkPrerequisiteFunction()
+		if (checkResult.error) {
+			return checkResult
+		}
+		
+		try {
+			let url = this.config.env[this.state.env].host + this.config.path.oauth.exchangeToken
+
+			const response = await fetch(url, {
+				method: 'POST',
+				headers: this.composeHeaderExchangeToken(exchangeToken),
+				body: {},
+			});
+			let json = await response.json()
+			if (json.statusCode != 200) {
+				return this.wrapResult(this.newError(json.errorCode, json.error), true)
+			}
+			await storeValue(this.field.token, json.data)
+			return this.wrapResult(json.data)
+		} catch (error) {
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError.code, error.message), true)
 		}
 	},
 
@@ -347,28 +393,31 @@ export default {
 			await storeValue(this.field.userInfo, json.data)
 			return this.wrapResult(json.data)
 		} catch (error) {
-			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError.code, error.message), true)
 		}
 	},
 
-	async getOauthPage(provider, redirectURL) {
-		let checkResult = this.checkPrerequisiteFunction({ needPageData: true })
+	async getOauthPage(provider, redirectURL, state = undefined) {
+		let checkResult = this.checkPrerequisiteFunction({ needPageData: true, needApplicationData: true })
 		if (checkResult.error) {
 			return checkResult
 		}
-
 		try {
-			if (!appsmith.store.userInfo){
-				await this.getUserInfo()
-			}
-			let path = this.config.path.application.authorize.replace("{id}", appsmith.store.userInfo.currentLoggedInfo.appId)
+			let path = this.config.path.application.authorize.replace("{id}", this.state.applicationInfo.appId)
 			let url = this.config.env[this.state.env].host + path
+			if (state != undefined){
+				await storeValue(this.field.oauthState, state)
+			}else{
+				let reqId = crypto.randomUUID()
+				state = this.state.applicationInfo.appId.concat("-",reqId)
+				await storeValue(this.field.oauthState, state)
+			}
 			const response = await fetch(url, {
 				method: 'POST',
-				headers: this.composeHeaderAuthorization(appsmith.store.tokens.accessToken),
 				body: JSON.stringify({
 					provider: provider,
-					redirectUrl: redirectURL
+					redirectUrl: redirectURL, 
+					state: state
 				}),
 			});
 			let json = await response.json()
@@ -377,35 +426,48 @@ export default {
 			}
 			return this.wrapResult(json.data)
 		} catch (error) {
-			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError.code, error.message), true)
 		}
 	},
-
-	async processOauthCallback() {
-		let checkResult = this.checkPrerequisiteFunction({ needPageData: true })
+	async checkURL(){
+		return {
+			queryParam: appsmith.URL.queryParams,
+			url: appsmith.URL
+		}
+	},
+	async processOauthCallback( params = { checkState : true} ) {
+		let checkResult = this.checkPrerequisiteFunction({ needPageData: true, needApplicationData: true })
 		if (checkResult.error) {
 			return checkResult
 		}
-		
+
 		try {
-			if (!appsmith.URL.queryParams.token && !appsmith.URL.queryParams.error) return;
+			if (!appsmith.URL.queryParams.exchangeToken && !appsmith.URL.queryParams.error) return;
 			if (appsmith.URL.queryParams.error){
-				let errorString = btoa(appsmith.URL.queryParams.error)
-				const errorObject = JSON.parse(errorString)
-				return this.wrapResult(this.newError(errorObject.errorCode, errorObject.error), true)
+				return this.wrapResult(this.newError(appsmith.URL.queryParams.errorCode, appsmith.URL.queryParams.error), true)
 			}
-			let tokenString = btoa(appsmith.URL.queryParams.token)
-			const tokenObject = JSON.parse(tokenString)
-			await storeValue(this.field.token, tokenObject)
+			let decodedExchangeToken = atob(appsmith.URL.queryParams.exchangeToken)
+			
+			let indexOfSeparator = decodedExchangeToken.indexOf(":")
+			let state = decodedExchangeToken.substring(indexOfSeparator+1)
+			if (params.checkState){
+				if (appsmith.store.oauthState != state){
+					return this.wrapResult(this.newError(this.errorConst.unauthorizedUser.code, this.errorConst.unauthorizedUser.message), true)
+				}
+			}
+
+			let res = await this.exchangeToken(appsmith.URL.queryParams.exchangeToken)
+			if (res.error) {
+				return res
+			}
+			let userToken = res.data
+			userToken.state = state
 			await this.getUserInfo()
-			return this.wrapResult(tokenObject)
+			return this.wrapResult(userToken)
 		} catch (error) {
-			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError.code, error.message), true)
 		}
 	},
-
-	
-
 
 	async refreshToken() {
 		let checkResult = this.checkPrerequisiteFunction({ needToken: true })
@@ -429,7 +491,7 @@ export default {
 			}
 			return this.wrapResult(this.newError(json.errorCode, json.error), true)
 		} catch (error) {
-			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError.code, error.message), true)
 		}
 	},
 
@@ -450,7 +512,7 @@ export default {
 			}
 			return this.wrapResult(true)
 		} catch (error) {
-			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError.code, error.message), true)
 		}
 
 	},
@@ -488,7 +550,7 @@ export default {
 			}
 			return this.wrapResult(this.newError(json.errorCode, json.error), true)
 		} catch (error) {
-			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError.code, error.message), true)
 		}
 	},
 
@@ -518,7 +580,7 @@ export default {
 			}
 			return this.wrapResult(json.data)
 		} catch (error) {
-			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError.code, error.message), true)
 		}
 	},
 
@@ -540,7 +602,7 @@ export default {
 			}
 			return this.wrapResult(json.data)
 		} catch (error) {
-			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError.code, error.message), true)
 		}
 	},
 
@@ -562,7 +624,7 @@ export default {
 			}
 			return this.wrapResult(json.data)
 		} catch (error) {
-			return this.wrapResult(this.newError(this.errorConst.unexpectedError, error.message), true)
+			return this.wrapResult(this.newError(this.errorConst.unexpectedError.code, error.message), true)
 		}
 	},
 }
