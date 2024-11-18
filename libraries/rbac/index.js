@@ -468,6 +468,7 @@ export default {
 			if (res.error) {
 				return res
 			}
+			await this.setAuthorizedPage(res.data)
 			let userToken = res.data
 			userToken.state = state
 			await this.getUserInfo()
