@@ -57,6 +57,9 @@ export default {
 			fb: {
 				host: 'https://api-fb.evermosa2z.com/rbac-fb'
 			},
+			dev: {
+				host: 'http://evm-rbac.dev.internal'
+			},
 		},
 		path: {
 			user: {
@@ -442,7 +445,10 @@ export default {
 		}
 
 		try {
+			await this.checkURL()
 			if (!appsmith.URL.queryParams.exchangeToken && !appsmith.URL.queryParams.error) {
+				console.log('token', appsmith.URL.queryParams.exchangeToken)
+				console.log('error', appsmith.URL.queryParams.error)
 				return;
 			}
 			if (appsmith.URL.queryParams.error){
