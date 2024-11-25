@@ -60,6 +60,9 @@ export default {
 			dev: {
 				host: 'http://evm-rbac.dev.internal'
 			},
+			production: {
+				host: 'https://evm-rbac.prod.internal'
+			},
 		},
 		path: {
 			user: {
